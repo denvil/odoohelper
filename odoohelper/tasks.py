@@ -2,7 +2,7 @@
 Odoo tasks
 """
 import math
-from datetime import datetime
+from datetime import datetime, timedelta
 
 class Task():
     """
@@ -14,6 +14,9 @@ class Task():
         self.stage = task_data['stage_id']
         # All dates and times should be in UTC. Only print and input with local time
         self.deadline = self.date_or_bool(task_data['date_deadline'], '%Y-%m-%d')
+        # Padd deadline to 12:00:00 for clarity
+        if self.deadline:
+            self.deadline += timedelta(hours=12)
         self.start_date = self.date_or_bool(task_data['date_start'], '%Y-%m-%d %H:%M:%S')
         self.end_date = self.date_or_bool(task_data['date_end'], '%Y-%m-%d %H:%M:%S')
         self.newest_message_date = max(
@@ -25,6 +28,14 @@ class Task():
         self.planned_hours = task_data['planned_hours']
         self.marked_priority = task_data['priority'] == '1'
         self.priority = self.calculate_priority()
+
+    @classmethod
+    def print_topic(cls):
+        return 'priority\tstage\tdeadline\tname'
+
+    def __str__(self):
+        """ Print as tab separated line"""
+        return f'{self.priority}\t{self.stage[1]}\t{self.deadline}\t{self.name}'
 
     @classmethod
     def date_or_bool(cls, datestr, dateformat):
@@ -122,3 +133,4 @@ class Task():
             task['partial_messages'] = client.read('mail.message', task['message_ids'], ['date', 'description'])
             final_task_list.append(Task(task))
         return final_task_list
+

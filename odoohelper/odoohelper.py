@@ -11,7 +11,7 @@ from pyfiglet import figlet_format
 
 from odoohelper.client import Client
 from odoohelper.tasks import Task
-
+from odoohelper.interactive import as_interactive
 try:
     with open(os.environ.get('ODOO_CONFIG', 'config.json'), 'r') as f:
         config = json.load(f)
@@ -82,8 +82,9 @@ def main():
 
 @main.command()
 @click.password_option(default=get_pass(), confirmation_prompt=False)
-@click.option('-u','--user')
-def tasks(password, user):
+@click.option('-u','--user', metavar='<user full name>', help="User display name in Odoo")
+@click.option('-i','--interactive', help="Ask what you want to do on each task", is_flag=True)
+def tasks(password, user, interactive):
     """Return tasks in priority order.
 
     Default is to find your tasks. This can also be used
@@ -97,12 +98,17 @@ def tasks(password, user):
         user_id = client.user.id
     filters = [
         ('user_id', '=', user_id),
-        ('stage_id', '!=', '8')  # This is done stage. Should be in config?
+        ('stage_id', '!=', 8)  # This is done stage. Should be in config?
     ]
     all_tasks = Task.fetch_tasks(client, filters)
     all_sorted = sorted(all_tasks, key=lambda x: x.priority, reverse=True)
+    if not interactive:
+        log(Task.print_topic(), 'blue')
     for task in all_sorted:
-        print(task.name, task.priority)
+        if not interactive:
+            log(task, 'yellow')
+        else:
+            as_interactive(client, task)
 
 
 

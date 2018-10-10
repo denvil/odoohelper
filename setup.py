@@ -21,7 +21,8 @@ setup(
         'Click',
         'openerp_proxy',
         'termcolor',
-        'pyfiglet'
+        'pyfiglet',
+        'colorama'
 
     ],
     entry_points='''
