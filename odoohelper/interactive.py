@@ -1,10 +1,11 @@
 """
 Interactive editors for tasks and others
 """
-import click
 from collections import namedtuple
-from odoohelper.tasks import Task
 
+import click
+
+from odoohelper.tasks import Task
 
 Action = namedtuple('Action', ['key', 'description', 'action_func'])
 Reaction = namedtuple('Reaction', ['cont', 'index'])
@@ -57,18 +58,18 @@ def as_interactive(client: any, task: Task, task_count: int, current_index: int)
     Handle interactive task here
     """
     actions = [
-        Action('1', 'Open in browser', open_in_browser),
-        Action('2', 'Change deadline', change_deadline),
-        Action('3', 'Change start date', change_startdate),
-        Action('0', 'Mark as done', mark_as_done),
-        Action('n', 'Next task', next_task),
-        Action('p', 'Previous task', previous_task),
-        Action('e', 'Exit', exit_tasks)
+        Action(('1',), 'Open in browser', open_in_browser),
+        Action(('2',), 'Change deadline', change_deadline),
+        Action(('3',), 'Change start date', change_startdate),
+        Action(('0',), 'Mark as done', mark_as_done),
+        Action(('n', '\r'), 'Next task', next_task),
+        Action(('p',), 'Previous task', previous_task),
+        Action(('e',), 'Exit', exit_tasks)
     ]
 
     action_str = ''
     for action in actions:
-        action_str += f'[{action.key}] {action.description} '
+        action_str += f'[{action.key[0]}] {action.description} '
 
     # Loop around one task until ctrl+c or enter is given
     while True:
@@ -81,16 +82,10 @@ def as_interactive(client: any, task: Task, task_count: int, current_index: int)
 
         action_key = click.getchar()
         try:
-            act = next(act for act in actions if action_key is act.key)
+            act = next(act for act in actions if action_key in act.key)
         except StopIteration:
             continue
         # Action func should return false if this task is done
         reaction = act.action_func(client, task)
         if not reaction.cont:
             return reaction.index
-
-
-
-
-
-
