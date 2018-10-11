@@ -7,6 +7,7 @@ import os
 import sys
 import json
 import click
+import keyring
 
 from odoohelper.client import Client
 from odoohelper.tasks import Task
@@ -38,9 +39,12 @@ def check_config():
 
 def get_pass():
     """
-    Get password from external source or return '' for user prompt
+    Get password from external source or return None for user prompt
     """
-    return ''
+    import keyring
+    pass_key = os.environ.get('ODOO_KEYRING_NAME', 'Odoo helper password')
+    password = keyring.get_password("odoo-helper", pass_key)
+    return password
 
 @click.group()
 def main():
@@ -50,7 +54,7 @@ def main():
     pass
 
 @main.command()
-@click.password_option(default=get_pass(), confirmation_prompt=False)
+@click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
 @click.option('-u','--user', metavar='<user full name>', help="User display name in Odoo")
 @click.option('-i','--interactive', help="Ask what you want to do on each task", is_flag=True)
 def tasks(password, user, interactive):
@@ -59,9 +63,12 @@ def tasks(password, user, interactive):
     Default is to find your tasks. This can also be used
     to fetch tasks by user.
     """
+    if password is None:
+        password = get_pass()
     check_config()
     with Settings() as config:
         client = Client(username=config['username'], password=password, database=config['database'], host=config['host'])
+
     client.connect()
     click.echo('Fetching tasks from ODOO... This may take a while.', file=sys.stderr)
     if not user:
