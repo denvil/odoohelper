@@ -7,42 +7,11 @@ import os
 import sys
 import json
 import click
-from pyfiglet import figlet_format
 
 from odoohelper.client import Client
 from odoohelper.tasks import Task
 from odoohelper.interactive import as_interactive
-try:
-    with open(os.environ.get('ODOO_CONFIG', 'config.json'), 'r') as f:
-        config = json.load(f)
-except FileNotFoundError:
-    # Set default configs
-    config = {
-
-    }
-
-
-
-try:
-    from termcolor import colored
-except ImportError:
-    def colored(string, _):
-        return string
-
-
-def log(string: str, color: str, font="slant", figlet=False, output=True):
-    """
-    Log using colors and figlet if needed.
-    Output True equalst stdout and False if stderr
-    """
-    if not output:
-        out = sys.stderr
-    else:
-        out = sys.stdout
-    if not figlet:
-        print(colored(string, color), file=out)
-    else:
-        print(colored(figlet_format(string, font), color), file=out)
+from odoohelper.settings import Settings
 
 def check_config():
     """
@@ -53,19 +22,19 @@ def check_config():
         'host',
         'database'
     ]
-    if all(key in config for key in required_keys):
-        return True
-    log('Required configs missing. Please fill them now', 'red')
-    host = input('Host: ')
-    database = input('Database: ')
-    username = input('Username: ')
-    config['host'] = host
-    config['database'] = database
-    config['username'] = username
 
-    # Save new values
-    with open(os.environ.get('ODOO_CONFIG', 'config.json'), 'w') as f:
-        json.dump(config, f)
+    with Settings() as config:
+        if all(key in config for key in required_keys):
+            return True
+        click.echo(click.style('Required configs missing. Please fill them now', fg='red'))
+        host = input('Host: ')
+        database = input('Database: ')
+        username = input('Username: ')
+        config['host'] = host
+        config['database'] = database
+        config['username'] = username
+        config.save()
+
 
 def get_pass():
     """
@@ -91,9 +60,10 @@ def tasks(password, user, interactive):
     to fetch tasks by user.
     """
     check_config()
-    client = Client(username=config['username'], password=password, database=config['database'], host=config['host'])
+    with Settings() as config:
+        client = Client(username=config['username'], password=password, database=config['database'], host=config['host'])
     client.connect()
-    log('Fetching tasks from ODOO... This may take a while.', 'blue')
+    click.echo('Fetching tasks from ODOO... This may take a while.', file=sys.stderr)
     if not user:
         user_id = client.user.id
     filters = [
@@ -103,12 +73,27 @@ def tasks(password, user, interactive):
     all_tasks = Task.fetch_tasks(client, filters)
     all_sorted = sorted(all_tasks, key=lambda x: x.priority, reverse=True)
     if not interactive:
-        log(Task.print_topic(), 'blue')
-    for task in all_sorted:
-        if not interactive:
-            log(task, 'yellow')
-        else:
-            as_interactive(client, task)
+        click.echo(Task.print_topic())
+        for task in all_sorted:
+            click.echo(task)
+    else:
+        current_index = 0
+        # Loop with index as interactive can go both ways
+        while True:
+            task = all_sorted[current_index]
+            index_mod = as_interactive(
+                client=client,
+                task=task,
+                task_count=len(all_sorted),
+                current_index=current_index)
+            new_index = current_index + index_mod
+
+            current_index = new_index
+            if current_index >= len(all_sorted):
+                current_index = 0
+            current_index = new_index
+            if current_index < 0:
+                current_index = len(all_sorted) - 1
 
 
 

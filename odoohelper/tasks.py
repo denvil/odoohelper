@@ -3,6 +3,7 @@ Odoo tasks
 """
 import math
 from datetime import datetime, timedelta
+from odoohelper.settings import Settings
 
 class Task():
     """
@@ -10,6 +11,12 @@ class Task():
     """
     def __init__(self, task_data):
         self.id = task_data['id']
+        self.setup(task_data)
+
+    def setup(self, task_data):
+        """
+        Setup values from raw json task.
+        """
         self.name = task_data['name']
         self.stage = task_data['stage_id']
         # All dates and times should be in UTC. Only print and input with local time
@@ -115,6 +122,17 @@ class Task():
         if not full_data['date_start'] or not full_data['date_end']:
             return 50
         return 0
+
+    def url(self):
+        """Return task url in host"""
+        with Settings() as settings:
+            return f'https://{settings["host"]}/web#id={self.id}&view_type=form&model=project.task&menu_id=93&action=143'
+
+    def reload(self, client):
+        """Reload task infromation."""
+        task_data = client.read('project.task', self.id)
+        task_data['partial_messages'] = client.read('mail.message', task_data['message_ids'], ['date', 'description'])
+        self.setup(task_data)
 
     @staticmethod
     def fetch_tasks(client, filters):
