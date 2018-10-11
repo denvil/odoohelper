@@ -102,6 +102,77 @@ def tasks(password, user, interactive):
                 current_index = len(all_sorted) - 1
 
 
+@main.command()
+@click.password_option(default=get_pass(), confirmation_prompt=False)
+@click.option('-u','--user', metavar='<user full name>', help="User display name in Odoo")
+def attendance(password, user):
+    """
+    Retrieves timesheet and totals it for the current month.
+    """
+    from datetime import datetime
+    import pytz
+    check_config()
+    with Settings() as config:
+        client = Client(username=config['username'], password=password, database=config['database'], host=config['host'])
+    client.connect()
+    if not user:
+        user_id = client.user.id
+    filters = [
+        ('employee_id.user_id.id', '=', user_id),
+        ('check_in', '>=', datetime.now().strftime('%Y-%m-01 00:00:00'))
+    ]
+    attendance_ids = client.search('hr.attendance', filters)
+    attendances = client.read('hr.attendance', attendance_ids)
+
+    days = {}
+
+    for attendance in attendances:
+        date = pytz.timezone('Europe/Helsinki').localize(
+            datetime.strptime(attendance['check_in'], '%Y-%m-%d %H:%M:%S'))
+        now = pytz.timezone('Europe/Helsinki').localize(
+            datetime.utcnow())
+        if attendance['check_out'] == False:
+            attendance['worked_hours'] = (now - date).seconds / 3600
+        # Key = %Y-%m-%d
+        key = date.strftime('%Y-%m-%d')
+        try:
+            days[key]['worked_hours'] += attendance['worked_hours']
+        except KeyError:
+            if date.weekday() in [5, 6]:  # Sat, Sun off
+                allocated_hours = 0.0
+            else:
+                allocated_hours = 7.5
+            days[key] = {
+                'worked_hours': 0,
+                'allocated_hours': allocated_hours
+            }
+            days[key]['worked_hours'] += attendance['worked_hours']
+    
+    total_diff = 0
+    day_diff = 0
+    for key, day in days.items():
+        print(f'{key} {(day["worked_hours"]):.2f}')
+        if key == datetime.today().strftime('%Y-%m-%d'):
+            day_diff += day['worked_hours'] - day['allocated_hours']
+        else:
+            total_diff += day['worked_hours'] - day['allocated_hours']
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    hours_today = 0
+    allocated_today = 0
+    if today in days:
+        hours_today = days[today]['worked_hours']
+        allocated_today = days[today]['allocated_hours']
+
+    print('---')
+    print(f'Balance before today: {total_diff:.2f}')
+    print(f'Balance if leaving now: {(total_diff + day_diff):.2f}')
+    print(f'Allocated hours left today: {(allocated_today - hours_today):.2f}')
+
+
+
+
+
 
 if __name__ == '__main__':
     main()
