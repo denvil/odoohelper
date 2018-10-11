@@ -1,4 +1,4 @@
 openerp_proxy
 click
-termcolor
+colorama
 pytest
