@@ -91,7 +91,6 @@ def tasks(password, user, interactive):
             current_index = new_index
             if current_index >= len(all_sorted):
                 current_index = 0
-            current_index = new_index
             if current_index < 0:
                 current_index = len(all_sorted) - 1
 
