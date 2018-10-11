@@ -20,7 +20,8 @@ setup(
     install_requires=[
         'Click',
         'openerp_proxy',
-        'colorama'
+        'colorama',
+        'keyring'
     ],
     entry_points='''
         [console_scripts]

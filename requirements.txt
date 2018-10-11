@@ -2,3 +2,4 @@ openerp_proxy
 click
 colorama
 pytest
+keyring
