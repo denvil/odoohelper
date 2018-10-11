@@ -20,10 +20,7 @@ setup(
     install_requires=[
         'Click',
         'openerp_proxy',
-        'termcolor',
-        'pyfiglet',
         'colorama'
-
     ],
     entry_points='''
         [console_scripts]
