@@ -15,6 +15,10 @@ def open_in_browser(client, task):
     return Reaction(True, None)
 
 def change_deadline(client, task):
+    deadline = click.prompt("Add deadline (YYYY-MM-DD)")
+    if len(deadline) != 0:
+        task.update(client, 'date_deadline', deadline)
+        task.update(client, 'date_end', f'{deadline} 22:00:00')
     return Reaction(True, None)
 
 def change_startdate(client, task):
