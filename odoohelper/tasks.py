@@ -134,6 +134,9 @@ class Task():
         task_data['partial_messages'] = client.read('mail.message', task_data['message_ids'], ['date', 'description'])
         self.setup(task_data)
 
+    def update(self, client, field, value):
+        client.write('project.task', self.id, {field: value})
+
     @staticmethod
     def fetch_tasks(client, filters):
         """

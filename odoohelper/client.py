@@ -56,3 +56,9 @@ class Client():
         Read data using ids list or int. Fields is optional
         """
         return self.client[db_name].read(ids, fields)
+
+    def write(self, db_name, ids, field):
+        """
+        Write data to db_name with id
+        """
+        return self.client[db_name].write(ids, field)
