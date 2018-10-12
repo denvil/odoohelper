@@ -49,7 +49,8 @@ def print_task(task):
     """
     Print task information
     """
-
+    print_data('Project', task.project)
+    print_data('Task stage', task.stage[1])
     print_data('Task title', task.name)
     print_data('Priority', str(task.priority))
     if not task.deadline:

@@ -14,12 +14,31 @@ class TaskTestSuite(unittest.TestCase):
             'date_end': '2018-10-31 23:59:00',
             'partial_messages': [{'date':'2018-10-21 12:00:00'}],
             'kanban_state': 'blocked',
+            'full_project_name': 'test_project',
+            'planned_hours': 100,
+            'priority': '1'
+        })
+        self.assertIsNotNone(task)
+        self.assertEqual(task.project, 'test_project')
+
+    def test_missing_dates(self):
+        """Dates as False should not kill task creation"""
+        task = Task({
+            'name': 'test',
+            'id': 1,
+            'stage_id' : [1, 'name'],
+            'date_deadline': False,
+            'date_start': False,
+            'date_end': False,
+            'full_project_name': 'test_project',
+            'partial_messages': [{'date':'2018-10-21 12:00:00'}],
+            'kanban_state': 'blocked',
             'planned_hours': 100,
             'priority': '1'
         })
         self.assertIsNotNone(task)
 
-    def test_missing_dates(self):
+    def test_missing_project(self):
         """Dates as False should not kill task creation"""
         task = Task({
             'name': 'test',
@@ -34,4 +53,5 @@ class TaskTestSuite(unittest.TestCase):
             'priority': '1'
         })
         self.assertIsNotNone(task)
+        self.assertEqual(task.project, 'Not assigned to project')
 

@@ -19,6 +19,7 @@ class Task():
         """
         self.name = task_data['name']
         self.stage = task_data['stage_id']
+        self.project = task_data.get('full_project_name', 'Not assigned to project')
         # All dates and times should be in UTC. Only print and input with local time
         self.deadline = self.date_or_bool(task_data['date_deadline'], '%Y-%m-%d')
         # Padd deadline to 12:00:00 for clarity
