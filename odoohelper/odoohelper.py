@@ -103,7 +103,7 @@ def tasks(password, user, interactive):
 
 
 @main.command()
-@click.password_option(default=get_pass(), confirmation_prompt=False)
+@click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
 @click.option('-u','--user', metavar='<user full name>', help="User display name in Odoo")
 def attendance(password, user):
     """
@@ -111,6 +111,16 @@ def attendance(password, user):
     """
     from datetime import datetime
     import pytz
+
+    def colored_diff(title, diff, invert=False):
+        color = 'magenta' if diff[0] == '-' and not invert else 'green'
+        click.echo(
+            click.style(f'{title}\t', fg='blue') +
+            click.style(diff, fg=color)
+        )
+
+    if password is None:
+        password = get_pass()
     check_config()
     with Settings() as config:
         client = Client(username=config['username'], password=password, database=config['database'], host=config['host'])
@@ -149,13 +159,19 @@ def attendance(password, user):
             days[key]['worked_hours'] += attendance['worked_hours']
     
     total_diff = 0
+    total_hours = 0
     day_diff = 0
-    for key, day in days.items():
-        print(f'{key} {(day["worked_hours"]):.2f}')
+    click.echo(click.style(f'Balance as of {(datetime.today().isoformat(timespec="seconds"))} (system time)', fg='blue'))
+    click.echo(click.style('Day\t\tWorked\tDifference', fg='blue'))
+    for key, day in sorted(days.items()):
+        diff = day['worked_hours'] - day['allocated_hours']
+        colored_diff(f'{key}\t{(day["worked_hours"]):.2f}', f'{diff:+.2f}')
+
         if key == datetime.today().strftime('%Y-%m-%d'):
             day_diff += day['worked_hours'] - day['allocated_hours']
         else:
             total_diff += day['worked_hours'] - day['allocated_hours']
+        total_hours += day['worked_hours']
 
     today = datetime.now().strftime('%Y-%m-%d')
     hours_today = 0
@@ -164,15 +180,13 @@ def attendance(password, user):
         hours_today = days[today]['worked_hours']
         allocated_today = days[today]['allocated_hours']
 
-    print('---')
-    print(f'Balance before today: {total_diff:.2f}')
-    print(f'Balance if leaving now: {(total_diff + day_diff):.2f}')
-    print(f'Allocated hours left today: {(allocated_today - hours_today):.2f}')
-
-
-
-
-
+    click.echo(click.style('---\t\t------\t-----', fg='blue'))
+    colored_diff(f'Totals:\t\t{total_hours:.2f}', f'{(total_diff + day_diff):+.2f}')
+    print()
+    colored_diff('Balance yesterday:', f'{total_diff:+.2f}')
+    colored_diff('Balance now:\t', f'{(total_diff + day_diff):+.2f}')
+    colored_diff(
+        'Allocated hours today:', f'{(allocated_today - hours_today):+.2f}', invert=True)
 
 if __name__ == '__main__':
     main()
