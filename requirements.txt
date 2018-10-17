@@ -3,3 +3,4 @@ click
 colorama
 pytest
 keyring
+pytz

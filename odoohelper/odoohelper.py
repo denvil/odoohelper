@@ -102,6 +102,91 @@ def tasks(password, user, interactive):
                 current_index = len(all_sorted) - 1
 
 
+@main.command()
+@click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
+@click.option('-u','--user', metavar='<user full name>', help="User display name in Odoo")
+def attendance(password, user):
+    """
+    Retrieves timesheet and totals it for the current month.
+    """
+    from datetime import datetime
+    import pytz
+
+    def colored_diff(title, diff, invert=False):
+        color = 'magenta' if diff[0] == '-' and not invert else 'green'
+        click.echo(
+            click.style(f'{title}\t', fg='blue') +
+            click.style(diff, fg=color)
+        )
+
+    if password is None:
+        password = get_pass()
+    check_config()
+    with Settings() as config:
+        client = Client(username=config['username'], password=password, database=config['database'], host=config['host'])
+    client.connect()
+    if not user:
+        user_id = client.user.id
+    filters = [
+        ('employee_id.user_id.id', '=', user_id),
+        ('check_in', '>=', datetime.now().strftime('%Y-%m-01 00:00:00'))
+    ]
+    attendance_ids = client.search('hr.attendance', filters)
+    attendances = client.read('hr.attendance', attendance_ids)
+
+    days = {}
+
+    for attendance in attendances:
+        date = pytz.timezone('Europe/Helsinki').localize(
+            datetime.strptime(attendance['check_in'], '%Y-%m-%d %H:%M:%S'))
+        now = pytz.timezone('Europe/Helsinki').localize(
+            datetime.utcnow())
+        if attendance['check_out'] == False:
+            attendance['worked_hours'] = (now - date).seconds / 3600
+        # Key = %Y-%m-%d
+        key = date.strftime('%Y-%m-%d')
+        try:
+            days[key]['worked_hours'] += attendance['worked_hours']
+        except KeyError:
+            if date.weekday() in [5, 6]:  # Sat, Sun off
+                allocated_hours = 0.0
+            else:
+                allocated_hours = 7.5
+            days[key] = {
+                'worked_hours': 0,
+                'allocated_hours': allocated_hours
+            }
+            days[key]['worked_hours'] += attendance['worked_hours']
+    
+    total_diff = 0
+    total_hours = 0
+    day_diff = 0
+    click.echo(click.style(f'Balance as of {(datetime.today().isoformat(timespec="seconds"))} (system time)', fg='blue'))
+    click.echo(click.style('Day\t\tWorked\tDifference', fg='blue'))
+    for key, day in sorted(days.items()):
+        diff = day['worked_hours'] - day['allocated_hours']
+        colored_diff(f'{key}\t{(day["worked_hours"]):.2f}', f'{diff:+.2f}')
+
+        if key == datetime.today().strftime('%Y-%m-%d'):
+            day_diff += day['worked_hours'] - day['allocated_hours']
+        else:
+            total_diff += day['worked_hours'] - day['allocated_hours']
+        total_hours += day['worked_hours']
+
+    today = datetime.now().strftime('%Y-%m-%d')
+    hours_today = 0
+    allocated_today = 0
+    if today in days:
+        hours_today = days[today]['worked_hours']
+        allocated_today = days[today]['allocated_hours']
+
+    click.echo(click.style('---\t\t------\t-----', fg='blue'))
+    colored_diff(f'Totals:\t\t{total_hours:.2f}', f'{(total_diff + day_diff):+.2f}')
+    print()
+    colored_diff('Balance yesterday:', f'{total_diff:+.2f}')
+    colored_diff('Balance now:\t', f'{(total_diff + day_diff):+.2f}')
+    colored_diff(
+        'Allocated hours today:', f'{(allocated_today - hours_today):+.2f}', invert=True)
 
 if __name__ == '__main__':
     main()
