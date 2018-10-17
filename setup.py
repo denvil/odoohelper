@@ -21,7 +21,7 @@ setup(
         'Click',
         'openerp_proxy',
         'colorama',
-        'keyring'
+        'keyring',
         'pytz'
     ],
     entry_points='''
