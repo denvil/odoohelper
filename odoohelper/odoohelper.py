@@ -148,10 +148,7 @@ def attendance(password, user):
         try:
             days[key]['worked_hours'] += attendance['worked_hours']
         except KeyError:
-            if date.weekday() in [5, 6]:  # Sat, Sun off
-                allocated_hours = 0.0
-            else:
-                allocated_hours = 7.5
+            allocated_hours = 7.5
             days[key] = {
                 'worked_hours': 0,
                 'allocated_hours': allocated_hours
