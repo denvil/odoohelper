@@ -113,7 +113,13 @@ def attendance(password, user):
     import pytz
 
     def colored_diff(title, diff, invert=False):
-        color = 'magenta' if diff[0] == '-' and not invert else 'green'
+        positive_color = 'green'
+        negative_color = 'magenta'
+        if invert:
+            positive_color = 'magenta'
+            negative_color = 'green'
+
+        color = negative_color if diff[0] == '-' else positive_color
         click.echo(
             click.style(f'{title}\t', fg='blue') +
             click.style(diff, fg=color)
