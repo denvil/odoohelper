@@ -3,16 +3,19 @@
 CLI for ODOO. This will automate some tasks and jobs that
 are too time consuming to workout in ODOO.
 """
+import datetime
+import json
 import os
 import sys
-import json
+
 import click
 import keyring
 
 from odoohelper.client import Client
-from odoohelper.tasks import Task
 from odoohelper.interactive import as_interactive
 from odoohelper.settings import Settings
+from odoohelper.tasks import Task
+
 
 def check_config():
     """
@@ -102,21 +105,39 @@ def tasks(password, user, interactive):
                 current_index = len(all_sorted) - 1
 
 
+def validate_odoo_date(ctx, param, value):
+    try:
+        date = datetime.datetime.strptime(value, '%Y-%m-%d')
+        return date
+    except ValueError:
+        raise click.BadParameter(f'date needs to be in format YYYY-MM-DD')
+
+
 @main.command()
 @click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
 @click.option('-u','--user', metavar='<user full name>', help="User display name in Odoo")
-def attendance(password, user):
+@click.option('--month', 'period', flag_value='month', default=True, help="Show records since start of current month")
+@click.option('--year', 'period', flag_value='year', help="Show records since start of current year")
+@click.option('--start', metavar='<start date>', callback=validate_odoo_date, help="Show records since date")
+@click.option('--end', metavar='<end date>', callback=validate_odoo_date, help="Show records up to date")
+def attendance(password, user, period, start=None, end=None):
     """
     Retrieves timesheet and totals it for the current month.
     """
     from datetime import datetime
     import pytz
+    import holidays
 
-    def colored_diff(title, diff, invert=False):
+    def colored_diff(title, diff, notes=None, invert=False):
         color = 'magenta' if diff[0] == '-' and not invert else 'green'
+        if not notes:
+            notes = ''
+        else:
+            notes = f' ! {notes}'
         click.echo(
             click.style(f'{title}\t', fg='blue') +
-            click.style(diff, fg=color)
+            click.style(diff, fg=color) +
+            click.style(notes, fg='magenta')
         )
 
     if password is None:
@@ -127,55 +148,100 @@ def attendance(password, user):
     client.connect()
     if not user:
         user_id = client.user.id
+
     filters = [
-        ('employee_id.user_id.id', '=', user_id),
-        ('check_in', '>=', datetime.now().strftime('%Y-%m-01 00:00:00'))
+        ('employee_id.user_id.id', '=', user_id)
     ]
+
+    # Add the start filter
+    if start:
+        filters.append(('check_in', '>=', start.strftime('%Y-%m-%d 00:00:00')))
+    elif period == 'month':
+        filters.append(('check_in', '>=', datetime.now().strftime('%Y-%m-01 00:00:00')))
+    elif period == 'year':
+        filters.append(('check_in', '>=', datetime.now().strftime('%Y-01-01 00:00:00')))
+
+    print(period, start, end)
+    # Add optional end filter
+    if end:
+        filters.append(('check_out', '<', end.strftime('%Y-%m-%d 00:00:00')))
+    
+    print(filters)
+
     attendance_ids = client.search('hr.attendance', filters)
     attendances = client.read('hr.attendance', attendance_ids)
 
-    days = {}
+    weeks = {}
+    # @TODO Assumes user is in Finland
+    local_holidays = holidays.FI()
+
+    # Faux data to test holidays
+    # attendances.append({
+    #     'check_in': '2018-01-01 00:00:00',
+    #     'check_out': '2018-01-01 02:00:00',
+    #     'worked_hours': 2
+    # })
 
     for attendance in attendances:
+        # Get a localized datetime object
+        # @TODO This assumes the server returns times as EU/Helsinki
         date = pytz.timezone('Europe/Helsinki').localize(
             datetime.strptime(attendance['check_in'], '%Y-%m-%d %H:%M:%S'))
-        now = pytz.timezone('Europe/Helsinki').localize(
-            datetime.utcnow())
+
+        # If there is no checkout time, sum to now
         if attendance['check_out'] == False:
+            # @TODO Same as above
+            now = pytz.timezone('Europe/Helsinki').localize(
+                datetime.utcnow())
             attendance['worked_hours'] = (now - date).seconds / 3600
-        # Key = %Y-%m-%d
-        key = date.strftime('%Y-%m-%d')
-        try:
-            days[key]['worked_hours'] += attendance['worked_hours']
-        except KeyError:
-            allocated_hours = 7.5
-            days[key] = {
+
+        # Get the day and week index keys (Key = %Y-%m-%d)
+        day_key = date.strftime('%Y-%m-%d')
+        # Counts weeks from first Monday of the year
+        week_key = date.strftime('%W')
+
+        if week_key not in weeks:
+            weeks[week_key] = {}
+        
+        if day_key not in weeks[week_key]:
+            # @TODO Assumes 7.5 hours per day
+            weeks[week_key][day_key] = {
+                'allocated_hours': 7.5,
                 'worked_hours': 0,
-                'allocated_hours': allocated_hours
+                'holiday': None
             }
-            days[key]['worked_hours'] += attendance['worked_hours']
+
+        if day_key in local_holidays:
+            # This day is a holiday, no allocated hours
+            weeks[week_key][day_key]['holiday'] = local_holidays.get(day_key)
+            weeks[week_key][day_key]['allocated_hours'] = 0
+            
+        # Sum the attendance
+        weeks[week_key][day_key]['worked_hours'] += attendance['worked_hours']
     
     total_diff = 0
     total_hours = 0
     day_diff = 0
     click.echo(click.style(f'Balance as of {(datetime.today().isoformat(timespec="seconds"))} (system time)', fg='blue'))
     click.echo(click.style('Day\t\tWorked\tDifference', fg='blue'))
-    for key, day in sorted(days.items()):
-        diff = day['worked_hours'] - day['allocated_hours']
-        colored_diff(f'{key}\t{(day["worked_hours"]):.2f}', f'{diff:+.2f}')
+    for week_number, week in sorted(weeks.items()):
+        for key, day in sorted(week.items()):
+            diff = day['worked_hours'] - day['allocated_hours']
+            colored_diff(f'{key}\t{(day["worked_hours"]):.2f}', f'{diff:+.2f}', day['holiday'])
 
-        if key == datetime.today().strftime('%Y-%m-%d'):
-            day_diff += day['worked_hours'] - day['allocated_hours']
-        else:
-            total_diff += day['worked_hours'] - day['allocated_hours']
-        total_hours += day['worked_hours']
+            if key == datetime.today().strftime('%Y-%m-%d'):
+                day_diff += day['worked_hours'] - day['allocated_hours']
+            else:
+                total_diff += day['worked_hours'] - day['allocated_hours']
+            total_hours += day['worked_hours']
 
     today = datetime.now().strftime('%Y-%m-%d')
+    this_week = datetime.now().strftime('%W')
     hours_today = 0
     allocated_today = 0
-    if today in days:
-        hours_today = days[today]['worked_hours']
-        allocated_today = days[today]['allocated_hours']
+    if today in weeks.get(this_week, {}): 
+        hours_today = weeks[this_week][today]['worked_hours']
+        allocated_today = weeks[this_week][today]['allocated_hours']
 
     click.echo(click.style('---\t\t------\t-----', fg='blue'))
     colored_diff(f'Totals:\t\t{total_hours:.2f}', f'{(total_diff + day_diff):+.2f}')
