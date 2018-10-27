@@ -4,3 +4,4 @@ colorama
 pytest
 keyring
 pytz
+holidays
