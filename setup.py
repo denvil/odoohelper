@@ -22,7 +22,8 @@ setup(
         'openerp_proxy',
         'colorama',
         'keyring',
-        'pytz'
+        'pytz',
+        'holidays'
     ],
     entry_points='''
         [console_scripts]
