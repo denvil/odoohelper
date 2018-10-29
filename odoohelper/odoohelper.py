@@ -128,12 +128,14 @@ def attendance(password, user, period, start=None, end=None):
     import pytz
     import holidays
 
-    def colored_diff(title, diff, notes=None, invert=False):
-        color = 'magenta' if diff[0] == '-' and not invert else 'green'
-        if not notes:
-            notes = ''
-        else:
-            notes = f' ! {notes}'
+    def colored_diff(title, diff, invert=False):
+        positive_color = 'green'
+        negative_color = 'magenta'
+        if invert:
+            positive_color = 'magenta'
+            negative_color = 'green'
+
+        color = negative_color if diff[0] == '-' else positive_color
         click.echo(
             click.style(f'{title}\t', fg='blue') +
             click.style(diff, fg=color) +
