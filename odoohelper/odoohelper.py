@@ -106,6 +106,9 @@ def tasks(password, user, interactive):
 
 
 def validate_odoo_date(ctx, param, value):
+    if not value:
+        # Empty date is fine
+        return None
     try:
         date = datetime.datetime.strptime(value, '%Y-%m-%d')
         return date
@@ -128,12 +131,17 @@ def attendance(password, user, period, start=None, end=None):
     import pytz
     import holidays
 
-    def colored_diff(title, diff, invert=False):
+    def colored_diff(title, diff, notes=None,  invert=False):
         positive_color = 'green'
         negative_color = 'magenta'
         if invert:
             positive_color = 'magenta'
             negative_color = 'green'
+
+        if not notes:
+            notes = ''
+        else:
+            notes = f' ! {notes}'
 
         color = negative_color if diff[0] == '-' else positive_color
         click.echo(
@@ -163,12 +171,9 @@ def attendance(password, user, period, start=None, end=None):
     elif period == 'year':
         filters.append(('check_in', '>=', datetime.now().strftime('%Y-01-01 00:00:00')))
 
-    print(period, start, end)
     # Add optional end filter
     if end:
         filters.append(('check_out', '<', end.strftime('%Y-%m-%d 00:00:00')))
-    
-    print(filters)
 
     attendance_ids = client.search('hr.attendance', filters)
     attendances = client.read('hr.attendance', attendance_ids)
