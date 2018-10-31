@@ -50,13 +50,11 @@ def get_pass():
     return password
 
 @click.group()
-def main():
-    """
-    ODOO CLI helper for common tasks.
-    """
+def tasks_group():
+    # Temp task group
     pass
 
-@main.command()
+@tasks_group.command()
 @click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
 @click.option('-u','--user', metavar='<user full name>', help="User display name in Odoo")
 @click.option('-i','--interactive', help="Ask what you want to do on each task", is_flag=True)
@@ -115,8 +113,12 @@ def validate_odoo_date(ctx, param, value):
     except ValueError:
         raise click.BadParameter(f'date needs to be in format YYYY-MM-DD')
 
+@click.group()
+def attendance_group():
+    # Collection for attendance commands
+    pass
 
-@main.command()
+@attendance_group.command()
 @click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
 @click.option('-u','--user', metavar='<user full name>', help="User display name in Odoo")
 @click.option('--month', 'period', flag_value='month', default=True, help="Show records since start of current month")
@@ -258,5 +260,15 @@ def attendance(password, user, period, start=None, end=None):
     colored_diff(
         'Allocated hours today:', f'{(allocated_today - hours_today):+.2f}', invert=True)
 
+
+cli = click.CommandCollection(sources=[
+    attendance_group,
+    tasks_group
+])
+    
+def main():
+    cli()
+
 if __name__ == '__main__':
     main()
+
