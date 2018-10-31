@@ -66,8 +66,8 @@ class Task():
             ('Marked with star', self.priority_check_star),
             ('Deadline passed', self.priority_check_deadline_pass),
             ('Check for blocking', self.priority_check_blocked),
-            # ('Check that planned hours is set', self.priority_planned_hours_set),
-            # ('Check that gantt is set', self.priority_gantt_set)
+            ('Check that planned hours is set', self.priority_planned_hours_set),
+            ('Check that gantt is set', self.priority_gantt_set)
         ]
         total_weight = 0
         for check in weight_table:
@@ -103,24 +103,20 @@ class Task():
         diff = self.get_current_time() - self.newest_message_date
         return 5 * diff.days
 
-    def priority_planned_hours_set(task):
+    def priority_planned_hours_set(self):
         """
         Each task should have something planned.
         """
-        tasks = client['project.task']
-        data = tasks.read(task.id, ['planned_hours'])
-        if data['planned_hours'] > 0:
+        if self.planned_hours > 0:
             return 0
         else:
             return 50
 
-    def priority_gantt_set(task):
+    def priority_gantt_set(self):
         """
         Each task should have start and end set
         """
-        tasks = client['project.task']
-        full_data = tasks.read(task.id)
-        if not full_data['date_start'] or not full_data['date_end']:
+        if not self.start_date or not self.end_date:
             return 50
         return 0
 

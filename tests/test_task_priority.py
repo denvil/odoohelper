@@ -53,8 +53,77 @@ class TaskPriorityTestSuite(unittest.TestCase):
                 self.assertEqual(priority, 18)
             if days == 9:
                 self.assertEqual(priority, 0)
+    
+    def test_planned_hours(self):
+        """Planned hours should influence priority"""
+        task_planned = Task({
+            'name': 'test',
+            'id': 1,
+            'stage_id' : [1, 'name'],
+            'date_deadline': '2018-10-31',
+            'date_start': '2018-10-20 00:00:00',
+            'date_end': '2018-10-31 23:59:00',
+            'partial_messages': [{'date':'2018-10-21 12:00:00'}],
+            'kanban_state': 'blocked',
+            'planned_hours': 100,
+            'priority': '1'
+        })
+        self.assertEqual(task_planned.priority_planned_hours_set(), 0)
+        task_not_planned = Task({
+            'name': 'test',
+            'id': 1,
+            'stage_id' : [1, 'name'],
+            'date_deadline': '2018-10-31',
+            'date_start': '2018-10-20 00:00:00',
+            'date_end': '2018-10-31 23:59:00',
+            'partial_messages': [{'date':'2018-10-21 12:00:00'}],
+            'kanban_state': 'blocked',
+            'planned_hours': 0,
+            'priority': '1'
+        })
+        self.assertEqual(task_not_planned.priority_planned_hours_set(), 50)
 
-
+    def test_gantt_hours(self):
+        """Gantt should be set"""
+        task_planned = Task({
+            'name': 'test',
+            'id': 1,
+            'stage_id' : [1, 'name'],
+            'date_deadline': '2018-10-31',
+            'date_start': '2018-10-20 00:00:00',
+            'date_end': '2018-10-31 23:59:00',
+            'partial_messages': [{'date':'2018-10-21 12:00:00'}],
+            'kanban_state': 'blocked',
+            'planned_hours': 100,
+            'priority': '1'
+        })
+        self.assertEqual(task_planned.priority_planned_hours_set(), 0)
+        task_not_planned_start = Task({
+            'name': 'test',
+            'id': 1,
+            'stage_id' : [1, 'name'],
+            'date_deadline': '2018-10-31',
+            'date_start': False,
+            'date_end': '2018-10-31 23:59:00',
+            'partial_messages': [{'date':'2018-10-21 12:00:00'}],
+            'kanban_state': 'blocked',
+            'planned_hours': 0,
+            'priority': '1'
+        })
+        self.assertEqual(task_not_planned_start.priority_planned_hours_set(), 50)
+        task_not_planned_end = Task({
+            'name': 'test',
+            'id': 1,
+            'stage_id' : [1, 'name'],
+            'date_deadline': '2018-10-31',
+            'date_start': '2018-10-20 00:00:00',
+            'date_end': False,
+            'partial_messages': [{'date':'2018-10-21 12:00:00'}],
+            'kanban_state': 'blocked',
+            'planned_hours': 0,
+            'priority': '1'
+        })
+        self.assertEqual(task_not_planned_end.priority_planned_hours_set(), 50)
 
 if __name__ == '__main__':
     unittest.main()
