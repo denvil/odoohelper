@@ -27,11 +27,15 @@ class Task():
             self.deadline += timedelta(hours=12)
         self.start_date = self.date_or_bool(task_data['date_start'], '%Y-%m-%d %H:%M:%S')
         self.end_date = self.date_or_bool(task_data['date_end'], '%Y-%m-%d %H:%M:%S')
-        self.newest_message_date = max(
-            datetime.strptime(
-                d['date'], '%Y-%m-%d %H:%M:%S'
-            ) for d in task_data['partial_messages']
-        )
+        try:
+            self.newest_message_date = max(
+                datetime.strptime(
+                    d['date'], '%Y-%m-%d %H:%M:%S'
+                ) for d in task_data['partial_messages']
+            )
+        except ValueError:
+            # If there is no messages in task then just set message date now()
+            self.newest_message_date = datetime.now()
         self.blocked = task_data['kanban_state'] == 'blocked'
         self.planned_hours = task_data['planned_hours']
         self.marked_priority = task_data['priority'] == '1'
