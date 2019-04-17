@@ -144,8 +144,29 @@ def tasks(password, user, interactive, list_tasks, print_format, start=None, end
     click.echo('Fetching tasks from ODOO... This may take a while.', file=sys.stderr)
     if not user:
         user_id = client.user.id
+    else:
+        selected_user = None
+        while not selected_user:
+            filters = []
+        
+            filters.append(('name', 'ilike', user))
+            users = client.search_read('res.users', filters)
+
+            if len(users) == 1:
+                selection = 0
+            else:
+                for index, user_data in enumerate(users):
+                    click.echo(f'[{index}] {user_data["name"]}')
+                click.echo(f'[s] Search again')
+                selection = click.prompt('Select user')
+            try: 
+                selected = int(selection)
+                selected_user = users[selected]
+            except:
+                user = click.prompt('User')
+        user_id = selected_user['id']
     filters = [
-        #('user_id', '=', user_id),
+        ('user_id', '=', user_id),
         ('stage_id', '!=', 8),  # This is done stage. Should be in config?
     ]
 
