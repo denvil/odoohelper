@@ -71,3 +71,9 @@ class Client():
     
     def create(self, db_name, fields):
         return self.client[db_name].create(fields)
+
+    def start_tracking(self, args):
+        return self.client['project.task'].start_tracking(args)
+
+    def terminate_tracking(self, args):
+        return self.client['project.task'].terminate_tracking(args)

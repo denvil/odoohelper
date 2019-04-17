@@ -1,6 +1,7 @@
 import os
 import sys
 import tempfile
+import datetime
 from subprocess import call
 
 import click
@@ -44,14 +45,48 @@ def tasks_group():
 @click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
 def instant(password):
     """ Start clocking on new task """
-    pass
+    if password is None:
+        password = get_pass()
+    check_config()
+    with Settings() as config:
+        client = Client(username=config['username'], password=password, database=config['database'], host=config['host'])
+    client.connect()
+
+    task = Task()
+    # Inbox project 1555
+    task.project_id = 1555
+    task.name = f'Task started on {datetime.datetime.now()}'
+    task.description = "Fill this later"
+    task.user_id = client.user.id
+    ids = task.create(client)
+    client.start_tracking([ids])
+
 
 @tasks_group.command()
 @click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
 def stop(password):
     """ Stop clocking on previous task.
     If this is instance task then ask for more information """
-    pass
+    if password is None:
+        password = get_pass()
+    check_config()
+    with Settings() as config:
+        client = Client(username=config['username'], password=password, database=config['database'], host=config['host'])
+    client.connect()
+    filters = [
+        ('user_id', '=', client.user.id),
+    ]
+    employee = client.search_read('hr.employee', filters)
+
+    if not employee[0]['current_task']:
+        click.echo('Nothing to show. Exiting..')
+        return
+    ids = employee[0]['current_task'][0]
+    client.terminate_tracking([ids])
+    task = Task()
+    task.id = ids
+    click.launch(task.url())
+    click.prompt('Press key of any to continue')
 
 
 @tasks_group.command()
