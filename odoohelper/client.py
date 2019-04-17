@@ -51,6 +51,12 @@ class Client():
         """
         return self.client[db_name].search(filters)
 
+    def search_read(self, db_name, filters):
+        """
+        Search data for db_name using filters
+        """
+        return self.client[db_name].search_read(filters)
+
     def read(self, db_name, ids, fields=None):
         """
         Read data using ids list or int. Fields is optional
@@ -62,3 +68,6 @@ class Client():
         Write data to db_name with id
         """
         return self.client[db_name].write(ids, field)
+    
+    def create(self, db_name, fields):
+        return self.client[db_name].create(fields)

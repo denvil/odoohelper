@@ -42,13 +42,14 @@ def print_data(title, data, warning=False):
     data_color = 'red' if warning else 'white'
     click.echo(
         click.style(f'{title}:\t', fg='blue') +
-        click.style(data, fg=data_color)
+        click.style(str(data), fg=data_color)
     )
 
 def print_task(task):
     """
     Print task information
     """
+    
     print_data('Project', task.project)
     print_data('Task stage', task.stage[1])
     print_data('Task title', task.name)

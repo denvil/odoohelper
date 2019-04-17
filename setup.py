@@ -23,7 +23,8 @@ setup(
         'colorama',
         'keyring',
         'pytz',
-        'holidays'
+        'holidays',
+        'textile'
     ],
     entry_points='''
         [console_scripts]

@@ -1,10 +1,39 @@
+import os
 import sys
+import tempfile
+from subprocess import call
+
 import click
-from odoohelper.settings import Settings
+
+import textile
 from odoohelper.client import Client
-from odoohelper.utils import get_pass, check_config
-from .tasks import Task
+from odoohelper.settings import Settings
+from odoohelper.utils import check_config, get_pass, validate_odoo_date
+
 from .interactive import as_interactive
+from .tasks import Task
+
+
+def create_message():
+    """ Open editor """
+    EDITOR = os.environ.get('EDITOR', 'vim')
+    template = """Tehtävän kuvaus:
+
+Tilaaja:
+
+Mahdollinen muu tieto:
+"""
+    message = template
+    with tempfile.NamedTemporaryFile(suffix='.tmp') as tf:
+        tf.write(template.encode('utf-8'))
+        tf.flush()
+        call([EDITOR, tf.name])
+
+        tf.seek(0)
+        message = tf.read()
+    
+    html = textile.textile(message.decode('utf-8'))
+    return html
 
 @click.group()
 def tasks_group():
@@ -13,9 +42,93 @@ def tasks_group():
 
 @tasks_group.command()
 @click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
+def instant(password):
+    """ Start clocking on new task """
+    pass
+
+@tasks_group.command()
+@click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
+def stop(password):
+    """ Stop clocking on previous task.
+    If this is instance task then ask for more information """
+    pass
+
+
+@tasks_group.command()
+@click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
+@click.option('-t', '--title', metavar='<title>', help='Task title', prompt=True)
+def create(password, title):
+    """ Create new task """
+    if password is None:
+        password = get_pass()
+    check_config()
+    with Settings() as config:
+        client = Client(username=config['username'], password=password, database=config['database'], host=config['host'])
+
+    client.connect()
+    message = create_message()
+
+    selected_project = None
+    while not selected_project:
+        project = click.prompt('Project')
+        filters = []
+        filters.append(('is_subtask_project', '=', False))
+        filters.append(('name', 'ilike', project))
+        projects = client.search_read('project.project', filters)
+        for index, project_data in enumerate(projects):
+            click.echo(f'[{index}] {project_data["display_name"]}')
+        click.echo(f'[s] Search again')
+        if len(projects) == 1:
+            selection = click.prompt('Select project', default=0)
+        else:
+            selection = click.prompt('Select project')
+        try: 
+            selected = int(selection)
+            selected_project = projects[selected]
+        except:
+            pass
+    task = Task()
+    task.name = title
+    task.description = message
+    task.project_id = selected_project['id']
+
+    selected_user = None
+    while not selected_user:
+        user = click.prompt('User')
+        filters = []
+    
+        filters.append(('name', 'ilike', user))
+        users = client.search_read('res.users', filters)
+        for index, user_data in enumerate(users):
+            click.echo(f'[{index}] {user_data["name"]}')
+        click.echo(f'[s] Search again')
+        if len(users) == 1:
+            selection = click.prompt('Select user', default=0)
+        else:
+            selection = click.prompt('Select user')
+        try: 
+            selected = int(selection)
+            selected_user = users[selected]
+        except:
+            pass
+            
+    
+    task.user_id = selected_user['id']
+
+    task.create(client)
+    click.echo(task.url())
+    click.prompt('Press key of any to continue')
+
+
+@tasks_group.command()
+@click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
 @click.option('-u','--user', metavar='<user full name>', help="User display name in Odoo")
 @click.option('-i','--interactive', help="Ask what you want to do on each task", is_flag=True)
-def tasks(password, user, interactive):
+@click.option('-l','--list-tasks', help="List tasks", is_flag=True)
+@click.option('-f', '--print-format', metavar='<format>', help='format return data as csv or md (markdown) (not interactive)', default='csv')
+@click.option('--start', metavar='<start date>', callback=validate_odoo_date, help="Show active tasks from date")
+@click.option('--end', metavar='<end date>', callback=validate_odoo_date, help="Show active tasks up to date")
+def tasks(password, user, interactive, list_tasks, print_format, start=None, end=None):
     """Return tasks in priority order.
 
     Default is to find your tasks. This can also be used
@@ -32,15 +145,21 @@ def tasks(password, user, interactive):
     if not user:
         user_id = client.user.id
     filters = [
-        ('user_id', '=', user_id),
-        ('stage_id', '!=', 8)  # This is done stage. Should be in config?
+        #('user_id', '=', user_id),
+        ('stage_id', '!=', 8),  # This is done stage. Should be in config?
     ]
+
+    if start:
+        filters.append(('date_start', "<=", end.strftime('%Y-%m-%d 00:00:00')))
+    if end:
+        filters.append(('date_deadline', "<=", end.strftime('%Y-%m-%d 23:59:00')))
+
     all_tasks = Task.fetch_tasks(client, filters)
     all_sorted = sorted(all_tasks, key=lambda x: x.priority, reverse=True)
     if not interactive:
-        click.echo(Task.print_topic())
+        click.echo(Task.print_topic(print_format))
         for task in all_sorted:
-            click.echo(task)
+            click.echo(task.as_formatted(print_format))
     else:
         current_index = 0
         # Loop with index as interactive can go both ways

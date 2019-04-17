@@ -14,7 +14,10 @@ import keyring
 from odoohelper.client import Client
 from odoohelper.settings import Settings
 from odoohelper.tasks import Task, tasks_group
+from odoohelper.projects import project_group
 from odoohelper.utils import get_pass, validate_odoo_date, check_config
+     
+
 
 @click.group()
 def attendance_group():
@@ -166,7 +169,8 @@ def attendance(password, user, period, start=None, end=None):
 
 cli = click.CommandCollection(sources=[
     attendance_group,
-    tasks_group
+    tasks_group,
+    project_group
 ])
     
 def main():

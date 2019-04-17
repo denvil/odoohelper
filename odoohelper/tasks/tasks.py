@@ -9,22 +9,27 @@ class Task():
     """
     Wrapper for Odoo task
     """
-    def __init__(self, task_data):
-        self.id = task_data['id']
-        self.setup(task_data)
+    def __init__(self):
+        self.id = -1
 
     def setup(self, task_data):
         """
         Setup values from raw json task.
         """
+        self.id = task_data['id']
         self.name = task_data['name']
         self.stage = task_data['stage_id']
+        self.description = task_data['description']
+        self.user_id = task_data['user_id']
+        self.project_id = task_data['project_id']
         self.project = task_data.get('full_project_name', 'Not assigned to project')
         # All dates and times should be in UTC. Only print and input with local time
         self.deadline = self.date_or_bool(task_data['date_deadline'], '%Y-%m-%d')
         # Padd deadline to 12:00:00 for clarity
         if self.deadline:
             self.deadline += timedelta(hours=12)
+        self.assigned = task_data['user_id']
+        self.create_date = self.date_or_bool(task_data['create_date'], '%Y-%m-%d %H:%M:%S')
         self.start_date = self.date_or_bool(task_data['date_start'], '%Y-%m-%d %H:%M:%S')
         self.end_date = self.date_or_bool(task_data['date_end'], '%Y-%m-%d %H:%M:%S')
         try:
@@ -41,9 +46,58 @@ class Task():
         self.marked_priority = task_data['priority'] == '1'
         self.priority = self.calculate_priority()
 
+    def start(self):
+        start = None
+        if self.create_date:
+            start = self.create_date
+        if self.start_date:
+            start = self.start_date
+        return start
+
+    def end(self):
+        end = datetime.now()
+        if self.end_date:
+            end = self.end_date
+        elif self.deadline:
+            end = self.deadline
+        return end
+
+    def days(self):
+        """ Return start/create date to end_date days """
+        
+        return (self.end() - self.start()).days
+        
+
     @classmethod
-    def print_topic(cls):
-        return 'priority\tstage\tdeadline\tname'
+    def print_topic(cls, print_format):
+        if print_format == 'csv':
+            return 'priority\tstage\tdeadline\tname'
+        else:
+            topics = [
+                'Priority',
+                'Stage',
+                'Name',
+                'Assigned',
+                'Deadline'
+            ]
+            ret_str = '| ' + ' | '.join(topics) + ' |\n'
+            ret_str += '|' + ' --- |' * len(topics)
+
+            return ret_str
+
+    def as_formatted(self, print_format):
+        """ Return as formatted """
+        if print_format == 'csv':
+            return f'{self.priority}\t{self.stage[1]}\t{self.deadline}\t{self.name}'
+        else:
+            data = [
+                str(self.priority),
+                self.stage[1],
+                f'[{self.name}]({self.url()})',
+                f'[{self.assigned[1]}](users/user-{self.assigned[0]})',
+                str(self.deadline),
+            ]
+            return '|' + ' | '.join(data) + ' |'
 
     def __str__(self):
         """ Print as tab separated line"""
@@ -85,7 +139,7 @@ class Task():
         if not self.deadline:
             return 1000
         if self.deadline <= self.get_current_time():
-            return 300
+            return 3000
         # Calculate each day to deadline.
         diff = self.deadline - self.get_current_time()
         diff = diff.days
@@ -138,6 +192,20 @@ class Task():
     def update(self, client, field, value):
         client.write('project.task', self.id, {field: value})
 
+    def create(self, client):
+        """ Create task """
+        args = {
+            'name': self.name,
+            'description': self.description,
+            'project_id': self.project_id,
+            'legend_blocked': False,
+            'legend_normal': False,
+            'user_id': self.user_id,
+            'stage_id': 14  # Inbox  
+        }
+        self.id = client.create('project.task', args)
+        return self.id
+
     @staticmethod
     def fetch_tasks(client, filters):
         """
@@ -153,6 +221,8 @@ class Task():
         for task in tasks_data:
             # Read only partial data to messages. For now only create date, description
             task['partial_messages'] = client.read('mail.message', task['message_ids'], ['date', 'description'])
-            final_task_list.append(Task(task))
+            real_task = Task()
+            real_task.setup(task)
+            final_task_list.append(real_task)
         return final_task_list
 
