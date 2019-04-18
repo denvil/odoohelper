@@ -73,7 +73,7 @@ class Task():
         if print_format == 'csv':
             return 'priority\tstage\tdeadline\tname'
         elif print_format == 'terminal':
-            return 'Priority\t\Stage\tDifference'
+            return 'Prio\tStage\t\tName\tAssigned\tDeadline\tURL'
         else:
             topics = [
                 'Priority',
@@ -100,6 +100,7 @@ class Task():
                 str(self.deadline),
                 self.url()
             ]
+            return '\t'.join(data)
         else:
             data = [
                 str(self.priority),

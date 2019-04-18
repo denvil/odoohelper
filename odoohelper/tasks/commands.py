@@ -175,8 +175,9 @@ def search(password, search_term):
 
     tasks = Task.search(client, search_term)
     if len(tasks) != 0:
+        click.echo(click.style(Task().print_topic('terminal'), fg='blue'))
         for task in tasks:
-            click.echo(task.as_formatted('terminal'))
+            click.echo(click.style(task.as_formatted('terminal'), fg='blue'))
     else:
         click.echo('No tasks found')
     input('Press Enter to continue...')
