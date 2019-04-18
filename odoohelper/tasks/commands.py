@@ -86,7 +86,7 @@ def stop(password):
     task = Task()
     task.id = ids
     click.launch(task.url())
-    click.prompt('Press key of any to continue')
+    input('Press Enter to continue...')
 
 
 @tasks_group.command()
@@ -152,7 +152,35 @@ def create(password, title):
 
     task.create(client)
     click.echo(task.url())
-    click.prompt('Press key of any to continue')
+    input('Press Enter to continue...')
+
+
+@tasks_group.command()
+@click.password_option(prompt=True if get_pass() is None else False, confirmation_prompt=False)
+@click.argument('search-term', required=False)
+def search(password, search_term):
+    """Return tasks in priority order.
+
+    Default is to find your tasks. This can also be used
+    to fetch tasks by user.
+    """
+    if password is None:
+        password = get_pass()
+    check_config()
+    with Settings() as config:
+        client = Client(username=config['username'], password=password, database=config['database'], host=config['host'])
+    client.connect()
+    if not search_term:
+        search_term = click.prompt('Search')
+
+    tasks = Task.search(client, search_term)
+    if len(tasks) != 0:
+        for task in tasks:
+            click.echo(task.as_formatted('terminal'))
+    else:
+        click.echo('No tasks found')
+    input('Press Enter to continue...')
+
 
 
 @tasks_group.command()

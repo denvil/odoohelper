@@ -12,12 +12,23 @@ import click
 import keyring
 
 from odoohelper.client import Client
+from odoohelper.projects import project_group
 from odoohelper.settings import Settings
 from odoohelper.tasks import Task, tasks_group
-from odoohelper.projects import project_group
-from odoohelper.utils import get_pass, validate_odoo_date, check_config
-     
+from odoohelper.utils import (check_config, get_pass, set_pass,
+                              validate_odoo_date)
 
+
+@click.group()
+def settings_group():
+    pass
+
+@settings_group.command()
+@click.password_option(prompt=True, confirmation_prompt=True)
+def set_password(password):
+    """ Set password to keyring """
+    set_pass(password)
+    click.echo('Password set')
 
 @click.group()
 def attendance_group():
@@ -170,7 +181,8 @@ def attendance(password, user, period, start=None, end=None):
 cli = click.CommandCollection(sources=[
     attendance_group,
     tasks_group,
-    project_group
+    project_group,
+    settings_group
 ])
     
 def main():
@@ -178,4 +190,3 @@ def main():
 
 if __name__ == '__main__':
     main()
-

@@ -27,6 +27,14 @@ def get_pass():
     password = keyring.get_password("odoo-helper", pass_key)
     return password
 
+def set_pass(password):
+    """
+    set password 
+    """
+    import keyring
+    pass_key = os.environ.get('ODOO_KEYRING_NAME', 'Odoo helper password')
+    keyring.set_password("odoo-helper", pass_key, password)
+
 def check_config():
     """
     Check that config is completed for required parts

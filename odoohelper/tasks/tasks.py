@@ -72,6 +72,8 @@ class Task():
     def print_topic(cls, print_format):
         if print_format == 'csv':
             return 'priority\tstage\tdeadline\tname'
+        elif print_format == 'terminal':
+            return 'Priority\t\Stage\tDifference'
         else:
             topics = [
                 'Priority',
@@ -89,6 +91,15 @@ class Task():
         """ Return as formatted """
         if print_format == 'csv':
             return f'{self.priority}\t{self.stage[1]}\t{self.deadline}\t{self.name}'
+        elif print_format == 'terminal':
+            data = [
+                str(self.priority),
+                self.stage[1],
+                f'{self.name}',
+                f'{self.assigned[1]}',
+                str(self.deadline),
+                self.url()
+            ]
         else:
             data = [
                 str(self.priority),
@@ -225,4 +236,10 @@ class Task():
             real_task.setup(task)
             final_task_list.append(real_task)
         return final_task_list
+    
+    @staticmethod
+    def search(client, name):
+        filters = []
+        filters.append(('name', 'ilike', name))
+        return Task.fetch_tasks(client, filters)
 
