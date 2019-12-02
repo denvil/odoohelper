@@ -101,7 +101,7 @@ def attendance(password, user, period, start=None, end=None):
             end = start.replace(month=start.month + 1, day=1) - \
                 timedelta(days=1)
         else:
-            end = start.replace(start.month, 31)
+            end = start.replace(day=31)
     elif period == 'year':
         # Calculate year
         start = datetime.now().replace(month=1, day=1, hour=0, minute=0, second=0)
