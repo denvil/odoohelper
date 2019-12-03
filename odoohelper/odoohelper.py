@@ -46,7 +46,7 @@ def attendance(password, user, period, start=None, end=None):
     """
     Retrieves timesheet and totals it for the current month.
     """
-    from datetime import datetime
+    from datetime import datetime, timedelta
     import pytz
     import holidays
 
@@ -81,22 +81,57 @@ def attendance(password, user, period, start=None, end=None):
     filters = [
         ('employee_id.user_id.id', '=', user_id)
     ]
+    filters_leave = [
+        ('employee_id.user_id.id', '=', user_id),
+        ('holiday_type', '=', 'employee')
+    ]
 
-    # Add the start filter
-    if start:
-        filters.append(('check_in', '>=', start.strftime('%Y-%m-%d 00:00:00')))
-    elif period == 'month':
-        filters.append(('check_in', '>=', datetime.now().strftime('%Y-%m-01 00:00:00')))
-    elif period == 'year':
-        filters.append(('check_in', '>=', datetime.now().strftime('%Y-01-01 00:00:00')))
-
-    # Add optional end filter
+    # Add end cutoff for checkout if there is one
     if end:
         filters.append(('check_out', '<', end.strftime('%Y-%m-%d 00:00:00')))
+
+    # Get start and end times
+    if start:
+        # No need to calculate start or end
+        pass
+    elif period == 'month':
+        # Calculate month
+        start = datetime.now().replace(day=1, hour=0, minute=0, second=0)
+        if start.month < 12:
+            end = start.replace(month=start.month + 1, day=1) - \
+                timedelta(days=1)
+        else:
+            end = start.replace(day=31)
+    elif period == 'year':
+        # Calculate year
+        start = datetime.now().replace(month=1, day=1, hour=0, minute=0, second=0)
+        end = start.replace(month=start.month, day=31)
+
+    # Add start filters
+    filters.append(
+        ('check_in', '>=', start.strftime('%Y-%m-%d 00:00:00')))
+    filters_leave.append(
+        ('date_from', '>=', start.strftime('%Y-%m-%d 00:00:00')))
+
+    # Always set end to end of today if not set
+    if not end:
+        end = datetime.now().replace(hour=23, minute=59, second=59)
+
+    # Add end cutoff for leaves
+    filters_leave.append(
+        ('date_to', '<', end.strftime('%Y-%m-%d 00:00:00')))
 
     attendance_ids = client.search('hr.attendance', filters)
     attendances = client.read('hr.attendance', attendance_ids)
 
+    leave_ids = client.search('hr.holidays', filters_leave)
+    leaves = client.read('hr.holidays', leave_ids)
+
+    def daterange(start_date, end_date):
+        for n in range(int((end_date - start_date).days)):
+            yield start_date + timedelta(n)
+
+    # Pre-process the weeks and days
     weeks = {}
     # @TODO Assumes user is in Finland
     local_holidays = holidays.FI()
@@ -108,6 +143,7 @@ def attendance(password, user, period, start=None, end=None):
     #     'worked_hours': 2
     # })
 
+    # Process attendances
     for attendance in attendances:
         # Get a localized datetime object
         # @TODO This assumes the server returns times as EU/Helsinki
@@ -134,17 +170,53 @@ def attendance(password, user, period, start=None, end=None):
             weeks[week_key][day_key] = {
                 'allocated_hours': 7.5,
                 'worked_hours': 0,
-                'holiday': None
+                'overtime': False,
+                'overtime_reason': None
             }
+
+        # Sum the attendance
+        weeks[week_key][day_key]['worked_hours'] += attendance['worked_hours']
+
+    for date in daterange(start, end):
+        # Get the day and week index keys (Key = %Y-%m-%d)
+        day_key = date.strftime('%Y-%m-%d')
+        # Counts weeks from first Monday of the year
+        week_key = date.strftime('%W')
+        if day_key not in weeks.get(week_key, {}):
+            # We don't care, no attendances for this day
+            continue
 
         if day_key in local_holidays:
             # This day is a holiday, no allocated hours
-            weeks[week_key][day_key]['holiday'] = local_holidays.get(day_key)
+            weeks[week_key][day_key]['overtime'] = True
+            weeks[week_key][day_key]['overtime_reason'] = local_holidays.get(
+                day_key)
             weeks[week_key][day_key]['allocated_hours'] = 0
-            
-        # Sum the attendance
-        weeks[week_key][day_key]['worked_hours'] += attendance['worked_hours']
-    
+
+        if date.isoweekday() >= 6:
+            # Weekend, assume everything is overtime
+            weeks[week_key][day_key]['overtime'] = True
+            weeks[week_key][day_key]['overtime_reason'] = 'Weekend'
+            weeks[week_key][day_key]['allocated_hours'] = 0
+
+    # Process any leaves
+    for leave in leaves:
+        leave_start = pytz.timezone('Europe/Helsinki').localize(
+            datetime.strptime(leave['date_from'], '%Y-%m-%d %H:%M:%S'))
+        leave_end = pytz.timezone('Europe/Helsinki').localize(
+            datetime.strptime(leave['date_to'], '%Y-%m-%d %H:%M:%S'))
+        for date in daterange(leave_start, leave_end):
+            # Get the day and week index keys (Key = %Y-%m-%d)
+            day_key = date.strftime('%Y-%m-%d')
+            # Counts weeks from first Monday of the year
+            week_key = date.strftime('%W')
+            if day_key not in weeks.get(week_key, {}):
+                # We don't care, no attendances for this day
+                continue
+            weeks[week_key][day_key]['overtime'] = True
+            weeks[week_key][day_key]['overtime_reason'] = f'Leave: {leave["name"]}'
+            weeks[week_key][day_key]['allocated_hours'] = 0
+
     total_diff = 0
     total_hours = 0
     day_diff = 0
@@ -152,8 +224,11 @@ def attendance(password, user, period, start=None, end=None):
     click.echo(click.style('Day\t\tWorked\tDifference', fg='blue'))
     for week_number, week in sorted(weeks.items()):
         for key, day in sorted(week.items()):
+            if day['worked_hours'] == 0.0:
+                continue
             diff = day['worked_hours'] - day['allocated_hours']
-            colored_diff(f'{key}\t{(day["worked_hours"]):.2f}', f'{diff:+.2f}', day['holiday'])
+            colored_diff(f'{key}\t{(day["worked_hours"]):.2f}',
+                         f'{diff:+.2f}', day.get('overtime_reason', None))
 
             if key == datetime.today().strftime('%Y-%m-%d'):
                 day_diff += day['worked_hours'] - day['allocated_hours']

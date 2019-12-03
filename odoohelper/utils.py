@@ -22,7 +22,6 @@ def get_pass():
     """
     Get password from external source or return None for user prompt
     """
-    import keyring
     pass_key = os.environ.get('ODOO_KEYRING_NAME', 'Odoo helper password')
     password = keyring.get_password("odoo-helper", pass_key)
     return password
@@ -31,7 +30,6 @@ def set_pass(password):
     """
     set password 
     """
-    import keyring
     pass_key = os.environ.get('ODOO_KEYRING_NAME', 'Odoo helper password')
     keyring.set_password("odoo-helper", pass_key, password)
 
