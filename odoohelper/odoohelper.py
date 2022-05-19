@@ -172,7 +172,8 @@ def attendance(password, user, period, start=None, end=None):
                 'allocated_hours': 7.5,
                 'worked_hours': 0,
                 'overtime': False,
-                'overtime_reason': None
+                'sick_leave': False,
+                'notes': None
             }
 
         # Sum the attendance
@@ -190,14 +191,14 @@ def attendance(password, user, period, start=None, end=None):
         if day_key in local_holidays:
             # This day is a holiday, no allocated hours
             weeks[week_key][day_key]['overtime'] = True
-            weeks[week_key][day_key]['overtime_reason'] = local_holidays.get(
+            weeks[week_key][day_key]['notes'] = local_holidays.get(
                 day_key)
             weeks[week_key][day_key]['allocated_hours'] = 0
 
         if date.isoweekday() >= 6:
             # Weekend, assume everything is overtime
             weeks[week_key][day_key]['overtime'] = True
-            weeks[week_key][day_key]['overtime_reason'] = 'Weekend'
+            weeks[week_key][day_key]['notes'] = 'Weekend'
             weeks[week_key][day_key]['allocated_hours'] = 0
 
     # Process any leaves
@@ -206,6 +207,7 @@ def attendance(password, user, period, start=None, end=None):
             datetime.strptime(leave['date_from'], '%Y-%m-%d %H:%M:%S'))
         leave_end = pytz.timezone('Europe/Helsinki').localize(
             datetime.strptime(leave['date_to'], '%Y-%m-%d %H:%M:%S'))
+        leave_status_id, _ = leave['holiday_status_id']
         for date in daterange(leave_start, leave_end):
             # Get the day and week index keys (Key = %Y-%m-%d)
             day_key = date.strftime('%Y-%m-%d')
@@ -214,8 +216,12 @@ def attendance(password, user, period, start=None, end=None):
             if day_key not in weeks.get(week_key, {}):
                 # We don't care, no attendances for this day
                 continue
-            weeks[week_key][day_key]['overtime'] = True
-            weeks[week_key][day_key]['overtime_reason'] = f'Leave: {leave["name"]}'
+            if leave_status_id != 2:
+                weeks[week_key][day_key]['overtime'] = True
+                weeks[week_key][day_key]['notes'] = f'Leave: {leave["name"]}'
+            if leave_status_id == 2:
+                weeks[week_key][day_key]['sick_leave'] = True
+                weeks[week_key][day_key]['notes'] = f'Sick Leave'
             weeks[week_key][day_key]['allocated_hours'] = 0
 
     total_diff = 0
@@ -227,9 +233,25 @@ def attendance(password, user, period, start=None, end=None):
         for key, day in sorted(week.items()):
             if day['worked_hours'] == 0.0:
                 continue
-            diff = day['worked_hours'] - day['allocated_hours']
-            colored_diff(f'{key}\t{(day["worked_hours"]):.2f}',
-                         f'{diff:+.2f}', day.get('overtime_reason', None))
+            worked = '{:.2f}'.format(day["worked_hours"])
+            title = f'{key}\t{worked}'
+            diff = '{:+.2f}'.format(day['worked_hours'] - day['allocated_hours'])
+            notes = day.get('notes', None)
+
+            # For sick days, list worked hours but striked-through
+            # Diff defaults at 0.00 hours
+            if day['sick_leave']:
+                # Messy but seems to work for the most parts
+                worked = '\u0336'+'\u0336'.join(worked)
+                title = '{}\t\u0336{}'.format(key, '\u0336'.join(worked))
+                diff = ' 0.00'
+
+            # Print the diff line
+            colored_diff(title, f'{diff}', notes)
+
+            # Skip calculating this if it's a sick leave
+            if day['sick_leave']:
+                continue
 
             if key == datetime.today().strftime('%Y-%m-%d'):
                 day_diff += day['worked_hours'] - day['allocated_hours']
@@ -260,7 +282,7 @@ cli = click.CommandCollection(sources=[
     project_group,
     settings_group
 ])
-    
+
 def main():
     cli()
 
