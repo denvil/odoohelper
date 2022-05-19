@@ -128,7 +128,8 @@ def attendance(password, user, period, start=None, end=None):
     leaves = client.read('hr.holidays', leave_ids)
 
     def daterange(start_date, end_date):
-        for n in range(int((end_date - start_date).days)):
+        # Always emit at least one day
+        for n in range(int((end_date - start_date).days) + 1):
             yield start_date + timedelta(n)
 
     # Pre-process the weeks and days
