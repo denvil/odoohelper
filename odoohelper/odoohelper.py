@@ -96,7 +96,7 @@ def attendance(password, user, period, start=None, end=None):
         pass
     elif period == 'month':
         # Calculate month
-        start = datetime.now().replace(day=1, hour=0, minute=0, second=0)
+        start = datetime.now().replace(day=1, hour=0, minute=0, second=0, microsecond=0)
         if start.month < 12:
             end = start.replace(month=start.month + 1, day=1) - \
                 timedelta(days=1)
@@ -104,8 +104,8 @@ def attendance(password, user, period, start=None, end=None):
             end = start.replace(day=31)
     elif period == 'year':
         # Calculate year
-        start = datetime.now().replace(month=1, day=1, hour=0, minute=0, second=0)
-        end = start.replace(month=start.month, day=31)
+        start = datetime.now().replace(month=1, day=1, hour=0, minute=0, second=0, microsecond=0)
+        end = start.replace(month=12, day=31)
 
     # Add start filters
     filters.append(
@@ -115,7 +115,7 @@ def attendance(password, user, period, start=None, end=None):
 
     # Always set end to end of today if not set
     if not end:
-        end = datetime.now().replace(hour=23, minute=59, second=59)
+        end = datetime.now().replace(hour=23, minute=59, second=59, microsecond=0)
 
     # Add end cutoff for leaves
     filters_leave.append(
@@ -195,7 +195,7 @@ def attendance(password, user, period, start=None, end=None):
                 day_key)
             weeks[week_key][day_key]['allocated_hours'] = 0
 
-        if date.isoweekday() >= 6:
+        if date.weekday() > 4:
             # Weekend, assume everything is overtime
             weeks[week_key][day_key]['overtime'] = True
             weeks[week_key][day_key]['notes'] = 'Weekend'
@@ -229,7 +229,7 @@ def attendance(password, user, period, start=None, end=None):
     day_diff = 0
     click.echo(click.style(f'Balance as of {(datetime.today().isoformat(timespec="seconds"))} (system time)', fg='blue'))
     click.echo(click.style('Day\t\tWorked\tDifference', fg='blue'))
-    for week_number, week in sorted(weeks.items()):
+    for _, week in sorted(weeks.items()):
         for key, day in sorted(week.items()):
             if day['worked_hours'] == 0.0:
                 continue
