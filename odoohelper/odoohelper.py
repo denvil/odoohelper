@@ -195,7 +195,7 @@ def attendance(password, user, period, start=None, end=None):
                 day_key)
             weeks[week_key][day_key]['allocated_hours'] = 0
 
-        if date.isoweekday() >= 6:
+        if date.weekday() > 4:
             # Weekend, assume everything is overtime
             weeks[week_key][day_key]['overtime'] = True
             weeks[week_key][day_key]['notes'] = 'Weekend'
