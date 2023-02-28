@@ -229,7 +229,7 @@ def attendance(password, user, period, start=None, end=None):
     day_diff = 0
     click.echo(click.style(f'Balance as of {(datetime.today().isoformat(timespec="seconds"))} (system time)', fg='blue'))
     click.echo(click.style('Day\t\tWorked\tDifference', fg='blue'))
-    for week_number, week in sorted(weeks.items()):
+    for _, week in sorted(weeks.items()):
         for key, day in sorted(week.items()):
             if day['worked_hours'] == 0.0:
                 continue
