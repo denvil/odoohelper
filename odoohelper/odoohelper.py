@@ -169,11 +169,12 @@ def attendance(password, user, period, start=None, end=None):
         if day_key not in weeks[week_key]:
             # @TODO Assumes 7.5 hours per day
             weeks[week_key][day_key] = {
-                'allocated_hours': 7.5,
-                'worked_hours': 0,
-                'overtime': False,
-                'sick_leave': False,
-                'notes': None
+                "allocated_hours": 7.5,
+                "worked_hours": 0,
+                "overtime": False,
+                "sick_leave": False,
+                "compensatory": False,
+                "notes": None,
             }
 
         # Sum the attendance
@@ -216,13 +217,19 @@ def attendance(password, user, period, start=None, end=None):
             if day_key not in weeks.get(week_key, {}):
                 # We don't care, no attendances for this day
                 continue
-            if leave_status_id != 2:
-                weeks[week_key][day_key]['overtime'] = True
-                weeks[week_key][day_key]['notes'] = f'Leave: {leave["name"]}'
-            if leave_status_id == 2:
-                weeks[week_key][day_key]['sick_leave'] = True
-                weeks[week_key][day_key]['notes'] = f'Sick Leave'
-            weeks[week_key][day_key]['allocated_hours'] = 0
+            if leave_status_id == 2:  # Sick leave
+                weeks[week_key][day_key]["sick_leave"] = True
+                weeks[week_key][day_key]["notes"] = f"Sick Leave"
+            elif leave_status_id == 3:  # Compensatory days
+                # Spent banked hours (full days)
+                weeks[week_key][day_key]["compensatory"] = True
+                weeks[week_key][day_key]["notes"] = f'Compensatory Day: {leave["name"]}'
+                # Skip nulling allocated hours for compensatory
+                continue
+            else:
+                weeks[week_key][day_key]["overtime"] = True
+                weeks[week_key][day_key]["notes"] = f'Leave: {leave["name"]}'
+            weeks[week_key][day_key]["allocated_hours"] = 0
 
     total_diff = 0
     total_hours = 0
@@ -231,33 +238,42 @@ def attendance(password, user, period, start=None, end=None):
     click.echo(click.style('Day\t\tWorked\tDifference', fg='blue'))
     for _, week in sorted(weeks.items()):
         for key, day in sorted(week.items()):
-            if day['worked_hours'] == 0.0:
+            # Skip if no hours worked and not a compensatory day
+            if day["worked_hours"] == 0.0 and not day["compensatory"]:
                 continue
-            worked = '{:.2f}'.format(day["worked_hours"])
-            title = f'{key}\t{worked}'
-            diff = '{:+.2f}'.format(day['worked_hours'] - day['allocated_hours'])
-            notes = day.get('notes', None)
+
+            worked_hours = day["worked_hours"]
+            allocated_hours = day["allocated_hours"]
+
+            worked = "{:.2f}".format(worked_hours)
+            title = f"{key}\t{worked}"
+            diff = "{:+.2f}".format(worked_hours - allocated_hours)
+            notes = day.get("notes", None)
 
             # For sick days, list worked hours but striked-through
             # Diff defaults at 0.00 hours
-            if day['sick_leave']:
+            if day["sick_leave"]:
                 # Messy but seems to work for the most parts
-                worked = '\u0336'+'\u0336'.join(worked)
-                title = '{}\t\u0336{}'.format(key, '\u0336'.join(worked))
-                diff = ' 0.00'
+                worked = "\u0336" + "\u0336".join(worked)
+                title = "{}\t\u0336{}".format(key, "\u0336".join(worked))
+                diff = " 0.00"
+
+            if day["compensatory"]:
+                # Always ensure worked hours are zero
+                worked_hours = 0
 
             # Print the diff line
-            colored_diff(title, f'{diff}', notes)
+            colored_diff(title, f"{diff}", notes)
 
             # Skip calculating this if it's a sick leave
-            if day['sick_leave']:
+            if day["sick_leave"]:
                 continue
 
-            if key == datetime.today().strftime('%Y-%m-%d'):
-                day_diff += day['worked_hours'] - day['allocated_hours']
+            if key == datetime.today().strftime("%Y-%m-%d"):
+                day_diff += worked_hours - allocated_hours
             else:
-                total_diff += day['worked_hours'] - day['allocated_hours']
-            total_hours += day['worked_hours']
+                total_diff += worked_hours - allocated_hours
+            total_hours += worked_hours
 
     today = datetime.now().strftime('%Y-%m-%d')
     this_week = datetime.now().strftime('%W')
