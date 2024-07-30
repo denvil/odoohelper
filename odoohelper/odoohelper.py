@@ -230,10 +230,14 @@ def attendance(password, user, period, start=None, end=None):
             weeks[week_key][day_key]["allocated_hours"] = 0
 
     # Process any leaves
+    now = pytz.timezone("Europe/Helsinki").localize(datetime.utcnow())
     for leave in leaves:
         leave_start = pytz.timezone("Europe/Helsinki").localize(
             datetime.strptime(leave["date_from"], "%Y-%m-%d %H:%M:%S")
         )
+        if leave_start > now:
+            # We don't care about leaves into the future
+            continue
         leave_end = pytz.timezone("Europe/Helsinki").localize(
             datetime.strptime(leave["date_to"], "%Y-%m-%d %H:%M:%S")
         )
@@ -243,22 +247,33 @@ def attendance(password, user, period, start=None, end=None):
             day_key = date.strftime("%Y-%m-%d")
             # Counts weeks from first Monday of the year
             week_key = date.strftime("%W")
-            if day_key not in weeks.get(week_key, {}):
-                # We don't care, no attendances for this day
-                continue
             if leave_status_id == 2:  # Sick leave
                 weeks[week_key][day_key]["sick_leave"] = True
                 weeks[week_key][day_key]["notes"] = f"Sick Leave"
+                weeks[week_key][day_key]["allocated_hours"] = 0
             elif leave_status_id == 3:  # Compensatory days
                 # Spent banked hours (full days)
-                weeks[week_key][day_key]["compensatory"] = True
-                weeks[week_key][day_key]["notes"] = f'Compensatory Day: {leave["name"]}'
-                # Skip nulling allocated hours for compensatory
+                if day_key not in weeks[week_key]:
+                    weeks[week_key][day_key] = {
+                        "allocated_hours": 7.5,
+                        "worked_hours": 0,
+                        "overtime": False,
+                        "sick_leave": False,
+                        "compensatory": True,
+                        "notes": f'Compensatory Day: {leave["name"]}',
+                    }
+                else:
+                    weeks[week_key][day_key]["compensatory"] = True
+                    weeks[week_key][day_key][
+                        "notes"
+                    ] = f'Compensatory Day: {leave["name"]}'
+            elif day_key not in weeks.get(week_key, {}):
+                # We don't care, no attendances for this day
                 continue
             else:
                 weeks[week_key][day_key]["overtime"] = True
                 weeks[week_key][day_key]["notes"] = f'Leave: {leave["name"]}'
-            weeks[week_key][day_key]["allocated_hours"] = 0
+                weeks[week_key][day_key]["allocated_hours"] = 0
 
     total_diff = 0
     total_hours = 0
