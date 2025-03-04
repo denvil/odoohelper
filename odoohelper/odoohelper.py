@@ -247,7 +247,10 @@ def attendance(password, user, period, start=None, end=None):
             day_key = date.strftime("%Y-%m-%d")
             # Counts weeks from first Monday of the year
             week_key = date.strftime("%W")
-            if leave_status_id == 2:  # Sick leave
+            if day_key not in weeks.get(week_key, {}):
+                # We don't care, no attendances for this day
+                continue
+            elif leave_status_id == 2:  # Sick leave
                 weeks[week_key][day_key]["sick_leave"] = True
                 weeks[week_key][day_key]["notes"] = f"Sick Leave"
                 weeks[week_key][day_key]["allocated_hours"] = 0
@@ -267,9 +270,6 @@ def attendance(password, user, period, start=None, end=None):
                     weeks[week_key][day_key][
                         "notes"
                     ] = f'Compensatory Day: {leave["name"]}'
-            elif day_key not in weeks.get(week_key, {}):
-                # We don't care, no attendances for this day
-                continue
             else:
                 weeks[week_key][day_key]["overtime"] = True
                 weeks[week_key][day_key]["notes"] = f'Leave: {leave["name"]}'
